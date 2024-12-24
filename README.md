@@ -220,6 +220,205 @@ Grâce à ces méthodes, nous construisons petit à petit ce que l'on appel des 
 
 Ces méthodes pourraient également être exportées du test pour ne laisser que du verbal... Qui a dit que l'écriture de tests était chiant ?!
 
+### Création d'un test d'intégration
+
+Nous allons maintenant réaliser le premier test d'intégration, sur un nouveau repository.
+
+Jusqu'à présent, nous avons travaillé avec un repository in-memory, très utile pour débuter dans la création de nos use-cases et dans nos tests unitaires.
+
+Mais ça n'aurait pas vraiment de sens de faire un test d'intégration sur un in-memory...
+
+Nous allons donc créer un repository qui va s'interfacer avec une vraie base de donnée, en utilisant [l'ORM Prisma](https://prisma.io).
+
+Allons, y : créons deux fichiers `webinars/adapters/webinar-repository.prisma.ts` et `webinars/adapters/webinar-repository.prisma.int.test.ts`
+
+```typescript
+import { PrismaClient, Webinar as PrismaWebinar } from '@prisma/client';
+import { Webinar } from 'src/webinars/entities/webinar.entity';
+import { IWebinarRepository } from 'src/webinars/ports/webinar-repository.interface';
+
+export class PrismaWebinarRepository implements IWebinarRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async create(webinar: Webinar): Promise<void> {
+    await this.prisma.webinar.create({
+      data: WebinarMapper.toPersistence(webinar),
+    });
+    return;
+  }
+  async findById(id: string): Promise<Webinar | null> {
+    const maybeWebinar = await this.prisma.webinar.findUnique({
+      where: { id },
+    });
+    if (!maybeWebinar) {
+      return null;
+    }
+    return WebinarMapper.toEntity(maybeWebinar);
+  }
+  async update(webinar: Webinar): Promise<void> {
+    await this.prisma.webinar.update({
+      where: { id: webinar.props.id },
+      data: WebinarMapper.toPersistence(webinar),
+    });
+    return;
+  }
+}
+
+class WebinarMapper {
+  static toEntity(webinar: PrismaWebinar): Webinar {
+    return new Webinar({
+      id: webinar.id,
+      organizerId: webinar.organizerId,
+      title: webinar.title,
+      startDate: webinar.startDate,
+      endDate: webinar.endDate,
+      seats: webinar.seats,
+    });
+  }
+
+  static toPersistence(webinar: Webinar): PrismaWebinar {
+    return {
+      id: webinar.props.id,
+      organizerId: webinar.props.organizerId,
+      title: webinar.props.title,
+      startDate: webinar.props.startDate,
+      endDate: webinar.props.endDate,
+      seats: webinar.props.seats,
+    };
+  }
+}
+```
+
+Dans le premier fichier, nous allons implémenter le `PrismaWebinarRepository` et un mapper, histoire de passer notre entité du domaine à l'infrastructure sereinement.
+
+Rien de bien compliqué ici.
+
+En production, l'application pourra maintenant utiliser un repository DB plutôt qu'in-memory en un minimum d'adaptation grâce à l'injection de dépendances : c'est la force d'une architecture propre !
+
+Naturellement, nous allons avoir un peu plus de travail de mise en place côté testing. Car il faut maintenant démarrer une DB déidée, gérer les intérractions pour que nos tests restent indépendant...
+
+Dans la pratique, on essaiera toujours de séparer l'éxecution de ces tests d'intégration (ou e2e), qui sont plus coûteux que les tests unitaires de par leur nature.
+
+Les tests unitaires sont très bien pour le développement et le feedback instantané, les tests d'intégrations se lanceront plutôt à la fin d'un développement ou dans une chaîne d'intégration.
+
+Un fichier de configuration et une tâche npm sont dédiés : `npm run test:int`.
+
+Passons maintenant à lécriture du test, voici ce que l'on cherche à faire :
+
+- déclarer tout ce dont on va avoir besoin
+- démarrer une DB dédiée aux tests
+- effectuer les migrations pour que la DB soit synchronisée
+- nettoyer cette DB entre chaque tests pour garantir l'indépendance
+- stopper la DB proprement après l'execution des tests
+
+Pour ces opérations, nous allons utiliser `testcontainers`. C'est une librairie qui va nous permettre de démarrer n'importe quel service qui tournerai dans un container docker, pour réaliser simplement des tests.
+
+Voici les variables dont nous allons avoir besoin :
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+import {
+  PostgreSqlContainer,
+  StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
+import { exec } from 'child_process';
+import { PrismaWebinarRepository } from 'src/webinars/adapters/webinar-repository.prisma';
+import { Webinar } from 'src/webinars/entities/webinar.entity';
+import { promisify } from 'util';
+const asyncExec = promisify(exec);
+
+describe('PrismaWebinarRepository', () => {
+  let container: StartedPostgreSqlContainer;
+  let prismaClient: PrismaClient;
+  let repository: PrismaWebinarRepository;
+  ...
+```
+
+Nous allons ensuite ajouter une action avant le lancement des tests, démarrer la DB et réaliser les migrations :
+
+```typescript
+beforeAll(async () => {
+  container = await new PostgreSqlContainer()
+    .withDatabase('test_db')
+    .withUsername('user_test')
+    .withPassword('password_test')
+    .withExposedPorts(5432)
+    .start();
+
+  const dbUrl = container.getConnectionUri();
+  prismaClient = new PrismaClient({
+    datasources: {
+      db: { url: dbUrl },
+    },
+  });
+
+  await asyncExec(`DATABASE_URL=${dbUrl} npx prisma migrate deploy`);
+
+  return prismaClient.$connect();
+});
+```
+
+Ensuite, avant chaque test, on va s'assurer de ré-initialiser le repository et supprimer les nettoyer la DB :
+
+```typescript
+beforeEach(async () => {
+  repository = new PrismaWebinarRepository(prismaClient);
+  await prismaClient.webinar.deleteMany();
+  await prismaClient.$executeRawUnsafe('DELETE FROM "Webinar" CASCADE');
+});
+```
+
+Et pour finir, après le lancement de tous les tests, nous allons arrêter le container :
+
+```typescript
+afterAll(async () => {
+  await container.stop({ timeout: 1000 });
+  return prismaClient.$disconnect();
+});
+```
+
+Un peu + de boilerplate inhérent à ce mode de tests... C'est aussi pour cette raison que l'on en fait naurellement moins, et pas avec la même approche.
+
+En effet, ici, on adopetera plutôt une logique de "test first" ou "test last" plutôt que de faire du TDD car le feedback est relativement long.
+
+Allons y pour la suite, nous allons tester chaque méthode de notre repository :
+
+```typescript
+describe('Scenario : repository.create', () => {
+  it('should create a webinar', async () => {
+    // ARRANGE
+    const webinar = new Webinar({
+      id: 'webinar-id',
+      organizerId: 'organizer-id',
+      title: 'Webinar title',
+      startDate: new Date('2022-01-01T00:00:00Z'),
+      endDate: new Date('2022-01-01T01:00:00Z'),
+      seats: 100,
+    });
+
+    // ACT
+    await repository.create(webinar);
+
+    // ASSERT
+    const maybeWebinar = await prismaClient.webinar.findUnique({
+      where: { id: 'webinar-id' },
+    });
+    expect(maybeWebinar).toEqual({
+      id: 'webinar-id',
+      organizerId: 'organizer-id',
+      title: 'Webinar title',
+      startDate: new Date('2022-01-01T00:00:00Z'),
+      endDate: new Date('2022-01-01T01:00:00Z'),
+      seats: 100,
+    });
+  });
+});
+```
+
+Si vous avez bien remarqué, on évite d'utiliser notre repository pour la partie ASSERT, on utilise ici directement le `prismaClient` pour isoler le test de la méthode `create`.
+
+À vous de jouer ! Vous allez maintenant suivre la même logique pour tester le `findById` et le `update`.
+
 ## Astuces
 
 La commande `npm run test:watch` pour lancer vos tests en watch mode.
