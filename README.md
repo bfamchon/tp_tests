@@ -419,6 +419,215 @@ Si vous avez bien remarqué, on évite d'utiliser notre repository pour la parti
 
 À vous de jouer ! Vous allez maintenant suivre la même logique pour tester le `findById` et le `update`.
 
+### Création d'un test E2E
+
+Nous avons vu le test unitaire, qui se focalisait sur le business avec les use-cases.
+
+Nous avons vu le test d'intégration qui venait tester nos adapteurs, aux frontières.
+
+Il nous reste maintenant le test E2E, traversant toute l'application d'un adapteur à l'autre (de gauche à droite).
+
+Pour ce faire, il va falloir créer un point d'entrée à gauche, un endpoint HTTP par exemple.
+
+Notre test va alors appeler ce endpoint, comme pour simuler une requête, puis traverser notre application : use-cases, repository...Et nous allons pouvoir tester que :
+
+- le retour HTTP est celui qu'on attend (status code, body...)
+- la donnée à bien été traitée (insertion en DB, ignorée...)
+
+Ce que vous avez peut-être remarqué lors de l'écriture du test d'intégration, c'est qu'il y avait beaucoup de boilerplate :
+
+- setup de la DB
+- nettoyage des données
+- fermeture du client
+- ...
+
+Sur un test E2E, nous en avons encore + ! Car il faudra ajouter à tout ça la mise en place d'un serveur. Naturellement les tests seront encore + long à jouer.
+
+C'est pour cette raison que l'on évite d'écrire trop de tests E2E, et on les éxecutes assez loin pour ne pas bloquer le flow de développement.
+
+C'est un filet de sécurité sur des scénarios critique.
+
+Pour notre TP, nous allons en écrire pour les use-cases développés, pour l'exemple... En réalité, essayez toujours d'identifier les scénarios critiques.
+
+Nous allons commencer par apporter un peu de lisibilité grâce aux Fixtures.
+
+Dans le contexte de tests, la fixture va être arrangeante et s'occuper également de la mise en place des différents items, comme nous l'avons vu plus haut dans les tests unitaires.
+
+Allons y ! Commençons par créer un fichier `src/container.ts`, on y trouvera le code pour l'injection de dépendances et l'initialisation des use-cases & repositories.
+
+_En utilisant des frameworks comme NestJS, cette partie deviendrait optionelle car le mécanisme est souvent intégré._
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+import { PrismaWebinarRepository } from 'src/webinars/adapters/webinar-repository.prisma';
+import { ChangeSeats } from 'src/webinars/use-cases/change-seats';
+
+export class AppContainer {
+  private prismaClient!: PrismaClient;
+  private webinarRepository!: PrismaWebinarRepository;
+  private changeSeatsUseCase!: ChangeSeats;
+
+  init(prismaClient: PrismaClient) {
+    this.prismaClient = prismaClient;
+    this.webinarRepository = new PrismaWebinarRepository(this.prismaClient);
+    this.changeSeatsUseCase = new ChangeSeats(this.webinarRepository);
+  }
+
+  getPrismaClient() {
+    return this.prismaClient;
+  }
+
+  getChangeSeatsUseCase() {
+    return this.changeSeatsUseCase;
+  }
+}
+
+export const container = new AppContainer();
+```
+
+Créons un fichier `src/tests/fixtures.ts` dans lequel nous allons retrouver beaucoup de choses communes à nos tests d'intégration.
+
+_Vous pourrez d'ailleurs vous lancer dans un refactoring pour utiliser la fixture dans nos tests d'intégration, geste qui sera valorisé._
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+import {
+  PostgreSqlContainer,
+  StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
+import { exec } from 'child_process';
+import Fastify, { FastifyInstance } from 'fastify';
+import { AppContainer } from 'src/container';
+import { webinarRoutes } from 'src/webinars/routes';
+import { promisify } from 'util';
+
+const asyncExec = promisify(exec);
+
+export class TestServerFixture {
+  private container!: StartedPostgreSqlContainer;
+  private prismaClient!: PrismaClient;
+  private serverInstance!: FastifyInstance;
+  private appContainer!: AppContainer;
+
+  async init() {
+    this.container = await new PostgreSqlContainer()
+      .withDatabase('test_db')
+      .withUsername('user_test')
+      .withPassword('password_test')
+      .start();
+
+    const dbUrl = this.container.getConnectionUri();
+
+    // Initialiser Prisma et les dépendances
+    this.prismaClient = new PrismaClient({
+      datasources: {
+        db: { url: dbUrl },
+      },
+    });
+
+    await asyncExec(`DATABASE_URL=${dbUrl} npx prisma migrate deploy`);
+    await this.prismaClient.$connect();
+
+    // Initialiser le conteneur avec Prisma
+    this.appContainer = new AppContainer();
+    this.appContainer.init(this.prismaClient);
+
+    // Initialiser le serveur
+    this.serverInstance = Fastify({ logger: false });
+    await webinarRoutes(this.serverInstance, this.appContainer);
+    await this.serverInstance.ready();
+  }
+
+  getPrismaClient() {
+    return this.prismaClient;
+  }
+
+  getServer() {
+    return this.serverInstance.server;
+  }
+
+  async stop() {
+    if (this.serverInstance) await this.serverInstance.close();
+    if (this.prismaClient) await this.prismaClient.$disconnect();
+    if (this.container) await this.container.stop();
+  }
+
+  async reset() {
+    await this.prismaClient.webinar.deleteMany();
+    await this.prismaClient.$executeRawUnsafe('DELETE FROM "Webinar" CASCADE');
+  }
+}
+```
+
+Vous n'allez pas être perdu, on y retrouve majoritairement les concepts déjà vu + haut, on y ajoute simplement la déclaration du Container.
+
+Passons maintenant au fichier de test, que l'on peut appeler `src/api.e2e.test.ts`.
+
+On commence par la première étape pour définir le fonctionnement de nos tests... Qui utilisera donc ce qu'on a créé pour la fixture
+
+```typescript
+describe('Webinar Routes E2E', () => {
+  let fixture: TestServerFixture;
+
+  beforeAll(async () => {
+    fixture = new TestServerFixture();
+    await fixture.init();
+  });
+
+  beforeEach(async () => {
+    await fixture.reset();
+  });
+
+  afterAll(async () => {
+    await fixture.stop();
+  });
+...
+});
+```
+
+Tout de suite + clair non ?!
+
+Reste à écrire notre test, le happy path pour commencer :
+
+```typescript
+...
+it('should update webinar seats', async () => {
+    // ARRANGE
+    const prisma = fixture.getPrismaClient();
+    const server = fixture.getServer();
+
+    const webinar = await prisma.webinar.create({
+      data: {
+        id: 'test-webinar',
+        title: 'Webinar Test',
+        seats: 10,
+        startDate: new Date(),
+        endDate: new Date(),
+        organizerId: 'test-user',
+      },
+    });
+
+    // ACT
+    const response = await supertest(server)
+      .post(`/webinars/${webinar.id}/seats`)
+      .send({ seats: '30' })
+      .expect(200);
+
+    // ASSERT
+    expect(response.body).toEqual({ message: 'Seats updated' });
+
+    const updatedWebinar = await prisma.webinar.findUnique({
+      where: { id: webinar.id },
+    });
+    expect(updatedWebinar?.seats).toBe(30);
+  });
+  ...
+```
+
+A vous de jouer ! Ajouter les tests qu'il faut pour correspondre aux différents retours HTTP.
+
+_Vous pouvez égaler ajouter d'autres tests sur le use-case `organize-webinar`, un autre geste qui sera valorisé pour ce TP._
+
 ## Astuces
 
 La commande `npm run test:watch` pour lancer vos tests en watch mode.
