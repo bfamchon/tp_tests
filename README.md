@@ -1,4 +1,30 @@
-# TP ARCHITECTURE
+# TP TESTING : How to test our new feature change number of seats ?
+
+## Table of Contents
+
+
+- [TP TESTING : How to test our new feature change number of seats ?](#tp-testing--how-to-test-our-new-feature-change-number-of-seats-)
+  - [Table of Contents](#table-of-contents)
+  - [Présentation du contexte](#présentation-du-contexte)
+  - [Spécifications](#spécifications)
+  - [How to use ?](#how-to-use-)
+  - [Marche à suivre](#marche-à-suivre)
+    - [Création de tests unitaires](#création-de-tests-unitaires)
+      - [A. Structure d'un test unitaire](#a-structure-dun-test-unitaire)
+      - [B. Organisation des tests dans un fichier de tests](#b-organisation-des-tests-dans-un-fichier-de-tests)
+      - [C. Ecriture de notre premier test](#c-ecriture-de-notre-premier-test)
+      - [D. Conseils sur le testing](#d-conseils-sur-le-testing)
+      - [E. Your turn : Webinar does not exist !](#e-your-turn--webinar-does-not-exist-)
+      - [F. Refactoring du code et des tests](#f-refactoring-du-code-et-des-tests)
+    - [Création d'un test d'intégration](#création-dun-test-dintégration)
+      - [A. Création d'un repository avec Prisma](#a-création-dun-repository-avec-prisma)
+      - [B. Boilerplate pour utiliser notre database dans les tests](#b-boilerplate-pour-utiliser-notre-database-dans-les-tests)
+      - [C. Ecriture de notre premier test d'intégration : create](#c-ecriture-de-notre-premier-test-dintégration--create)
+    - [Création d'un test E2E](#création-dun-test-e2e)
+      - [A. Rappel sur les tests end-to-end](#a-rappel-sur-les-tests-end-to-end)
+      - [B. Fixtures pour les tests E2E](#b-fixtures-pour-les-tests-e2e)
+      - [C. Ecriture de notre premier test E2E](#c-ecriture-de-notre-premier-test-e2e)
+    - [Bonus](#bonus)
 
 ## Présentation du contexte
 
@@ -12,20 +38,39 @@ Cette fois-ci, nous allons implémenter des tests unitaires et E2E sur la foncti
 
 Cette approche vous apportera une autre vision de comment s'y prendre pour tester unitairement vos fonctionnalités !
 
+## Spécifications
+
 Pour cette fonctionnalité `change-seat`, voici quelques règles métier :
 
 - seul l'organisateur peut changer le nombre de siège disponible
 - nous ne pouvons pas revoir un nombre de siège à la baisse
 
+## How to use ?
+
+- `npm run test:watch` pour lancer vos tests en watch mode
+- `npm run test:int` pour lancer les tests d'intégrations (`test:int:watch` en mode watch)
+
+
 ## Marche à suivre
 
-### Création d'un fichier de test unitaire
+### Création de tests unitaires
 
-Nous allons commencer par créer un fichier `change-seat.test.ts` sur lequel vous allez implémenter les tests unitaires de la fonctionnalité `change-seat`.
+#### A. Structure d'un test unitaire
 
 Pour organiser un test unitaire, intéréssons nous d'abord à la structure d'un test.
+Nous pouvons le découper en 3 parties, généralement appelé AAA (ou parfois GIVEN / WHEN / THEN)
 
-Au premier describe, indiquez la fonctionnalité testée.
+- ARRANGE : mise en place des données ou des paramètres requis par le test
+- ACT : appel de la fonction correspondant au scénario de test
+- ASSERT : vérification de la donnée en sortie de l'étape ACT. Cette donnée doit être conforme au comportement attendu afin que le test réussisse.
+
+#### B. Organisation des tests dans un fichier de tests
+
+Nous allons implémenter les tests de la fonctionnalité `change-seat` dans le fichier `change-seat.test.ts`.
+
+Voici une proposition d'organisation :
+
+1. Au premier describe, indiquez la fonctionnalité testée.
 
 ```typescript
 describe('Feature : Change seats', () => {
@@ -33,7 +78,7 @@ describe('Feature : Change seats', () => {
 });
 ```
 
-Au second, le scénario au sein de cette fonctionnalité.
+2. Au second, le scénario au sein de cette fonctionnalité.
 
 ```typescript
 describe('Feature : Change seats', () => {
@@ -44,7 +89,7 @@ describe('Feature : Change seats', () => {
 });
 ```
 
-Puis terminer par la règle métier qui est testée.
+3. Puis terminer par la règle métier qui est testée.
 
 ```typescript
 describe('Feature : Change seats', () => {
@@ -58,7 +103,9 @@ describe('Feature : Change seats', () => {
 });
 ```
 
-Nous pouvons maintenant écrire notre premier test, en commençant la payload que nous allons utiliser, soit une demande de l'utilisateur `alice` de changer le nombre de place à `200` pour le webinaire `webinar-id` :
+#### C. Ecriture de notre premier test
+
+Nous pouvons maintenant écrire notre premier test, en commençant par écrire la payload que nous allons utiliser, soit une demande de l'utilisateur `alice` de changer le nombre de place à `200` pour le webinaire `webinar-id` :
 
 ```typescript
    describe('Scenario: happy path', () => {
@@ -97,9 +144,9 @@ Nous cherchons donc à faire :
 - initialiser le use-case
 - initialiser un repository
 - populer un webinaire dans ce repository, pour que l'on puisse appliquer les règles métier et vérifier
-- avant chaque test, repartir d'un état initial, pour garantir l'indépendance entre plusieurs éxecutions.
+- avant chaque test, repartir d'un état initial, pour garantir l'indépendance entre plusieurs exécutions.
 
-Allons y :
+Allons-y :
 
 ```typescript
 describe('Change seats', () => {
@@ -123,10 +170,11 @@ describe('Change seats', () => {
 });
 ```
 
-Le premier scénario devrait passer au vert !
+Le premier scénario devrait passer au vert ! Congrats 🎉
+
+#### D. Conseils sur le testing
 
 Une écriture du test unitaire après le code n'est pas forcément le + adapté car vous partez avec un esprit biaisé.
-
 D'ailleurs, on pourrait ne pas y voir d'intérêt...
 
 Et vous avez raison !
@@ -145,6 +193,8 @@ Voici quelques recommandations :
 - j'entame une phase de refactoring pour rendre mon test et mon code + élégant.
 - je passe au scénario suivant
 
+#### E. Your turn : Webinar does not exist !
+
 Passons au scénario suivant, que ce passe-t-il si le webinaire n'existe pas ?
 
 ```typescript
@@ -158,13 +208,11 @@ describe('Scenario: webinar does not exist', () => {
 });
 ```
 
-À vous de jouer : Quelle serait ma payload cette fois-ci, pour que l'on vérifie que le scénario est bien couvert ?
+❓ Quelle serait ma payload cette fois-ci, pour que l'on vérifie que le scénario est bien couvert ?
 
-À vous de jouer : Quel serait le test à écrire pour vérifier que le bon message d'erreur a été lancé ?
+❓ Quel serait le test à écrire pour vérifier que le bon message d'erreur a été lancé ?
 
-Un indice : `await expect(useCase.execute(payload)).rejects.toThrow("mon message d'erreur");`
-
-Bon, c'était relativement simple...
+> 💡 Un indice : [rejects](https://jestjs.io/docs/expect#rejects)
 
 Il ne faut pas oublier de vérifier que le webinaire initial n'a pas été modifié !
 
@@ -175,13 +223,15 @@ const webinar = webinarRepository.findByIdSync('webinar-id');
 expect(webinar?.props.seats).toEqual(100);
 ```
 
-Pour la suite, ce sera à votre tour. Voici ce qu'il nous reste à vérifier :
+Voici les scénarios qu'il nous reste à vérifier :
 
 - Scenario: update the webinar of someone else
 - Scenario: change seat to an inferior number
 - Scenario: change seat to a number > 1000
 
-Vous trouverez tout ce qu'il vous faut en regardant le use-case.
+> 💡 Vous trouverez tout ce qu'il vous faut en regardant le use-case.
+
+#### F. Refactoring du code et des tests
 
 Une fois que les différents scénarios sont couverts, il ne faut pas hésiter à faire un refactoring global, du code et des tests !
 
@@ -216,21 +266,23 @@ expect(updatedWebinar?.props.seats).toEqual(200);
 
 Par `thenUpdatedWebinarSeatsShouldBe(200)`
 
-Grâce à ces méthodes, nous construisons petit à petit ce que l'on appel des fixtures.
+Grâce à ces méthodes, nous construisons petit à petit ce que l'on appelle des **fixtures**.
 
-Ces méthodes pourraient également être exportées du test pour ne laisser que du verbal... Qui a dit que l'écriture de tests était chiant ?!
+Ces méthodes pourraient également être exportées du test pour ne laisser que du verbal... Testing is not boring 🤘
 
 ### Création d'un test d'intégration
 
 Nous allons maintenant réaliser le premier test d'intégration, sur un nouveau repository.
 
-Jusqu'à présent, nous avons travaillé avec un repository in-memory, très utile pour débuter dans la création de nos use-cases et dans nos tests unitaires.
+Jusqu'à présent, nous avons travaillé avec un **repository in-memory**, très utile pour débuter dans la création de nos use-cases et dans nos tests unitaires.
 
 Mais ça n'aurait pas vraiment de sens de faire un test d'intégration sur un in-memory...
 
+#### A. Création d'un repository avec Prisma
+
 Nous allons donc créer un repository qui va s'interfacer avec une vraie base de donnée, en utilisant [l'ORM Prisma](https://prisma.io).
 
-Allons, y : créons deux fichiers `webinars/adapters/webinar-repository.prisma.ts` et `webinars/adapters/webinar-repository.prisma.int.test.ts`
+Allons, y : dans `webinars/adapters/webinar-repository.prisma.ts`, copiez cette implémentation d'un repository avec Prisma :
 
 ```typescript
 import { PrismaClient, Webinar as PrismaWebinar } from '@prisma/client';
@@ -289,21 +341,21 @@ class WebinarMapper {
 }
 ```
 
-Dans le premier fichier, nous allons implémenter le `PrismaWebinarRepository` et un mapper, histoire de passer notre entité du domaine à l'infrastructure sereinement.
+Dans ce fichier, nous avons implémenté le `PrismaWebinarRepository` et un mapper `WebinarMapper`, afin de passer notre entité du domaine à l'infrastructure sereinement.
 
-Rien de bien compliqué ici.
+En production, l'application pourra maintenant utiliser un repository database (avec Prisma) plutôt qu'in-memory en un minimum d'adaptation grâce à l'**injection de dépendances** : c'est la force d'une architecture propre ! ✨
 
-En production, l'application pourra maintenant utiliser un repository DB plutôt qu'in-memory en un minimum d'adaptation grâce à l'injection de dépendances : c'est la force d'une architecture propre !
-
-Naturellement, nous allons avoir un peu plus de travail de mise en place côté testing. Car il faut maintenant démarrer une DB déidée, gérer les intérractions pour que nos tests restent indépendant...
+Naturellement, nous allons avoir un peu plus de travail de mise en place côté testing. Car il faut maintenant démarrer une DB dédidée, gérer les interactions pour que nos tests restent indépendants...
 
 Dans la pratique, on essaiera toujours de séparer l'éxecution de ces tests d'intégration (ou e2e), qui sont plus coûteux que les tests unitaires de par leur nature.
 
 Les tests unitaires sont très bien pour le développement et le feedback instantané, les tests d'intégrations se lanceront plutôt à la fin d'un développement ou dans une chaîne d'intégration.
 
-Un fichier de configuration et une tâche npm sont dédiés : `npm run test:int`.
+#### B. Boilerplate pour utiliser notre database dans les tests
 
-Passons maintenant à lécriture du test, voici ce que l'on cherche à faire :
+> 💡 Pour lancer notre test d'intégration, il faut lancer cette commande : `npm run test:int`.
+
+Passons maintenant à lécriture du test dans le fichier `webinars/adapters/webinar-repository.prisma.int.test.ts`, voici ce que l'on cherche à faire :
 
 - déclarer tout ce dont on va avoir besoin
 - démarrer une DB dédiée aux tests
@@ -311,7 +363,7 @@ Passons maintenant à lécriture du test, voici ce que l'on cherche à faire :
 - nettoyer cette DB entre chaque tests pour garantir l'indépendance
 - stopper la DB proprement après l'execution des tests
 
-Pour ces opérations, nous allons utiliser `testcontainers`. C'est une librairie qui va nous permettre de démarrer n'importe quel service qui tournerai dans un container docker, pour réaliser simplement des tests.
+Pour ces opérations, nous allons utiliser `testcontainers`. C'est une librairie qui va nous permettre de démarrer n'importe quel service qui tournerait dans un container docker, pour réaliser simplement des tests.
 
 Voici les variables dont nous allons avoir besoin :
 
@@ -332,12 +384,14 @@ describe('PrismaWebinarRepository', () => {
   let prismaClient: PrismaClient;
   let repository: PrismaWebinarRepository;
   ...
+});
 ```
 
 Nous allons ensuite ajouter une action avant le lancement des tests, démarrer la DB et réaliser les migrations :
 
 ```typescript
 beforeAll(async () => {
+  // Connect to database
   container = await new PostgreSqlContainer()
     .withDatabase('test_db')
     .withUsername('user_test')
@@ -352,6 +406,7 @@ beforeAll(async () => {
     },
   });
 
+  // Run migrations to populate the database
   await asyncExec(`DATABASE_URL=${dbUrl} npx prisma migrate deploy`);
 
   return prismaClient.$connect();
@@ -380,6 +435,8 @@ afterAll(async () => {
 Un peu + de boilerplate inhérent à ce mode de tests... C'est aussi pour cette raison que l'on en fait naurellement moins, et pas avec la même approche.
 
 En effet, ici, on adopetera plutôt une logique de "test first" ou "test last" plutôt que de faire du TDD car le feedback est relativement long.
+
+#### C. Ecriture de notre premier test d'intégration : create
 
 Allons y pour la suite, nous allons tester chaque méthode de notre repository :
 
@@ -427,7 +484,9 @@ Nous avons vu le test d'intégration qui venait tester nos adapteurs, aux fronti
 
 Il nous reste maintenant le test E2E, traversant toute l'application d'un adapteur à l'autre (de gauche à droite).
 
-Pour ce faire, il va falloir créer un point d'entrée à gauche, un endpoint HTTP par exemple.
+#### A. Rappel sur les tests end-to-end
+
+Pour ce faire, il va falloir créer un point d'entrée dans notre application, un endpoint HTTP par exemple.
 
 Notre test va alors appeler ce endpoint, comme pour simuler une requête, puis traverser notre application : use-cases, repository...Et nous allons pouvoir tester que :
 
@@ -449,11 +508,13 @@ C'est un filet de sécurité sur des scénarios critique.
 
 Pour notre TP, nous allons en écrire pour les use-cases développés, pour l'exemple... En réalité, essayez toujours d'identifier les scénarios critiques.
 
-Nous allons commencer par apporter un peu de lisibilité grâce aux Fixtures.
+#### B. Fixtures pour les tests E2E
+
+Nous allons commencer par apporter un peu de lisibilité grâce aux **Fixtures**.
 
 Dans le contexte de tests, la fixture va être arrangeante et s'occuper également de la mise en place des différents items, comme nous l'avons vu plus haut dans les tests unitaires.
 
-Allons y ! Commençons par créer un fichier `src/container.ts`, on y trouvera le code pour l'injection de dépendances et l'initialisation des use-cases & repositories.
+Allons y ! Dans le fichier `src/container.ts`, vous trouverez le code pour l'injection de dépendances et l'initialisation des use-cases & repositories.
 
 _En utilisant des frameworks comme NestJS, cette partie deviendrait optionelle car le mécanisme est souvent intégré._
 
@@ -561,6 +622,8 @@ export class TestServerFixture {
 
 Vous n'allez pas être perdu, on y retrouve majoritairement les concepts déjà vu + haut, on y ajoute simplement la déclaration du Container.
 
+#### C. Ecriture de notre premier test E2E
+
 Passons maintenant au fichier de test, que l'on peut appeler `src/api.e2e.test.ts`.
 
 On commence par la première étape pour définir le fonctionnement de nos tests... Qui utilisera donc ce qu'on a créé pour la fixture
@@ -624,10 +687,14 @@ it('should update webinar seats', async () => {
   ...
 ```
 
-A vous de jouer ! Ajouter les tests qu'il faut pour correspondre aux différents retours HTTP.
+A vous de jouer ! Ajouter les tests qu'il faut pour correspondre aux différents retours HTTP :
+- l'erreur `WebinarNotFoundException`
+- l'erreur `WebinarNotOrganizerException`
 
-_Vous pouvez égaler ajouter d'autres tests sur le use-case `organize-webinar`, un autre geste qui sera valorisé pour ce TP._
+### Bonus
 
-## Astuces
+Ajouter d'autres tests sur le use-case `organize-webinar`:
+- un test d'intégration
+- un test E2E
 
-La commande `npm run test:watch` pour lancer vos tests en watch mode.
+
