@@ -2,7 +2,6 @@
 
 ## Table of Contents
 
-
 - [TP TESTING : How to test our new feature change number of seats ?](#tp-testing--how-to-test-our-new-feature-change-number-of-seats-)
   - [Table of Contents](#table-of-contents)
   - [Présentation du contexte](#présentation-du-contexte)
@@ -25,6 +24,7 @@
       - [B. Fixtures pour les tests E2E](#b-fixtures-pour-les-tests-e2e)
       - [C. Ecriture de notre premier test E2E](#c-ecriture-de-notre-premier-test-e2e)
     - [Bonus](#bonus)
+  - [Troubleshoot](#troubleshoot)
 
 ## Présentation du contexte
 
@@ -49,7 +49,6 @@ Pour cette fonctionnalité `change-seat`, voici quelques règles métier :
 
 - `npm run test:watch` pour lancer vos tests en watch mode
 - `npm run test:int` pour lancer les tests d'intégrations (`test:int:watch` en mode watch)
-
 
 ## Marche à suivre
 
@@ -688,13 +687,25 @@ it('should update webinar seats', async () => {
 ```
 
 A vous de jouer ! Ajouter les tests qu'il faut pour correspondre aux différents retours HTTP :
+
 - l'erreur `WebinarNotFoundException`
 - l'erreur `WebinarNotOrganizerException`
 
 ### Bonus
 
 Ajouter d'autres tests sur le use-case `organize-webinar`:
+
 - un test d'intégration
 - un test E2E
 
+## Troubleshoot
 
+Problem with testcontainers + devcontainer about docker rights on docker.sock
+
+```bash
+ls -al /var/run/docker.sock
+```
+
+Output must be `srw-rw-rw- 1 root docker`
+We must have rights to make things on host docker.sock from devcontainers.
+I fix it using `chmod 666 /var/run/docker.sock`

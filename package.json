@@ -6,7 +6,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:int": "jest --config jest.config.int.ts",
-    "test:int:watch": "jest --config jest.config.int.ts --watch"
+    "test:int:watch": "jest --config jest.config.int.ts --watch",
+    "db:generate": "prisma generate"
   },
   "author": "",
   "license": "ISC",
